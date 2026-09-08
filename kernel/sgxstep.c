@@ -38,6 +38,7 @@
 
 #include <linux/clockchips.h>
 #include <linux/version.h>
+#include <linux/smp.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Jo Van Bulck <jo.vanbulck@cs.kuleuven.be>, Raoul Strackx <raoul.strackx@cs.kuleuven.be>");
@@ -63,6 +64,7 @@ static idtr_t g_idtr = {0};
 static void *g_idt_copy = NULL;
 
 static uint32_t g_apic_lvtt_copy = 0x0, g_apic_tdcr_copy = 0x0;
+static int g_victim_cpu = -1;
 
 /* ********************** UTIL FUNCTIONS ******************************* */
 
@@ -150,6 +152,7 @@ static int save_idt(void)
  */
 static int save_apic(void)
 {
+    g_victim_cpu = smp_processor_id();
     g_apic_lvtt_copy = apic->read(APIC_LVTT);
     g_apic_tdcr_copy = apic->read(APIC_TDCR);
     log("original APIC_LVTT=%#x/TDCR=%#x)", g_apic_lvtt_copy, g_apic_tdcr_copy);
@@ -207,7 +210,7 @@ static void restore_idt(void)
     }
 }
 
-static void restore_apic(void)
+static void _do_restore_apic(void *info)
 {
     int delta = 100;
 
@@ -229,6 +232,18 @@ static void restore_apic(void)
         log("restoring APIC timer one-shot/periodic operation");
         apic->write(APIC_TMICT, delta);
     }
+}
+
+/*
+ * Restore on the core the timer was hijacked on, not the closing core: a
+ * multi-threaded host closing /dev/sgx-step elsewhere would hang teardown (#90).
+ */
+static void restore_apic(void)
+{
+    if (g_victim_cpu >= 0 && g_victim_cpu != smp_processor_id())
+        smp_call_function_single(g_victim_cpu, _do_restore_apic, NULL, 1);
+    else
+        _do_restore_apic(NULL);
 }
 
 /*
