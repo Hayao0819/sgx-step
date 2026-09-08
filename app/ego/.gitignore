@@ -1,0 +1,9 @@
+*_t.*
+*_u.*
+*.pem
+*_args.h
+*.signed
+*.json
+enclave/hello
+host/ego_host
+_bundle/

@@ -1,0 +1,30 @@
+// Copyright (c) Edgeless Systems GmbH.
+// Licensed under the MIT License.
+
+// Same interface as Edgeless RT's erthost: an ertdeventry (EGo) enclave calls
+// ert_get_args_ocall / ert_cpuid_ocall, so the custom host must expose them.
+
+enclave {
+    from "openenclave/edl/core.edl" import *;
+    from "openenclave/edl/syscall.edl" import *;
+    from "platform.edl" import *;
+    from "entropy.edl" import *;  // required by symcrypt
+    from "openenclave/edl/ertlibc.edl" import *;
+    include "openenclave/ert_args.h"
+
+    trusted {
+        public int emain();
+    };
+
+    untrusted {
+        ert_args_t ert_get_args_ocall();
+
+        void ert_cpuid_ocall(
+            unsigned int leaf,
+            unsigned int subleaf,
+            [out] unsigned int* eax,
+            [out] unsigned int* ebx,
+            [out] unsigned int* ecx,
+            [out] unsigned int* edx);
+    };
+};

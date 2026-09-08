@@ -13,3 +13,9 @@
 [submodule "sdk/oe/openenclave"]
 	path = sdk/oe/openenclave
 	url = https://github.com/openenclave/openenclave.git
+[submodule "sdk/ego/edgelessrt"]
+	path = sdk/ego/edgelessrt
+	url = https://github.com/edgelesssys/edgelessrt.git
+[submodule "sdk/ego/ego"]
+	path = sdk/ego/ego
+	url = https://github.com/edgelesssys/ego.git
