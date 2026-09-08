@@ -68,6 +68,10 @@ run: clean all
 parse: run
 	SGX_STEP_PLATFORM=$(SGX_STEP_PLATFORM) ./parse_$(PARSE).py $(NUM)
 
+CAL_ARGS ?=
+calibrate: all
+	./calibrate.py --slide-len $(NUM) $(CAL_ARGS)
+
 $(OUTPUT): $(BUILDDIRS) $(OBJECTS)
 	echo "$(INDENT)[LD]" $(OBJECTS) $(LIBS) -o $(OUTPUT) 
 	$(LD) $(OBJECTS) $(LDFLAGS) -o $(OUTPUT) 

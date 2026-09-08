@@ -21,6 +21,7 @@
 #include <sgx_urts.h>
 #include <signal.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include "Enclave/encl_u.h"
 #include "libsgxstep/apic.h"
@@ -47,6 +48,9 @@
 sgx_enclave_id_t eid = 0;
 int strlen_nb_access = 0;
 int irq_cnt = 0, do_irq = 1, fault_cnt = 0;
+int timer_interval = SGX_STEP_TIMER_INTERVAL;
+/* Zero-step abort threshold (decoupled from slide length); override with -m. */
+int max_irq = NUM_RUNS * 500;
 uint64_t *pte_encl = NULL;
 uint64_t *pte_str_encl = NULL;
 uint64_t *pmd_encl = NULL;
@@ -71,7 +75,7 @@ void aep_cb_func(void) {
     *pte_str_encl = MARK_NOT_ACCESSED(*pte_str_encl);
 #endif
 
-    if (do_irq && (irq_cnt > NUM_RUNS * 500)) {
+    if (do_irq && (irq_cnt > max_irq)) {
         info(
             "excessive interrupt rate detected (try adjusting timer interval "
             "to avoid getting stuck in zero-stepping); aborting...");
@@ -97,7 +101,7 @@ void aep_cb_func(void) {
     if (do_irq) {
         *pmd_encl = MARK_NOT_ACCESSED(*pmd_encl);
         flush(pmd_encl);
-        apic_timer_irq(SGX_STEP_TIMER_INTERVAL);
+        apic_timer_irq(timer_interval);
     }
 }
 
@@ -173,6 +177,14 @@ int main(int argc, char **argv) {
     int apic_fd, encl_strlen = 0, updated = 0, vec = 0;
     idt_t idt = {0};
 
+    int opt;
+    while ((opt = getopt(argc, argv, "t:m:")) != -1) {
+        switch (opt) {
+        case 't': timer_interval = atoi(optarg); break;
+        case 'm': max_irq        = atoi(optarg); break;
+        }
+    }
+
     info_event("Creating enclave...");
     SGX_ASSERT(sgx_create_enclave("./Enclave/encl.so", /*debug=*/1, &token,
                                   &updated, &eid, NULL));
@@ -195,13 +207,13 @@ int main(int argc, char **argv) {
     apic_timer_oneshot(IRQ_VECTOR);
 
     __ss_irq_fired = 0;
-    apic_timer_irq( SGX_STEP_TIMER_INTERVAL );
+    apic_timer_irq( timer_interval );
     while (!__ss_irq_fired);
     info("APIC timer IRQ handler seems to be working");
 
     /* 2. Single-step enclaved execution. */
     info_event("calling enclave: attack=%d; num_runs=%d; timer=%d",
-               ATTACK_SCENARIO, NUM_RUNS, SGX_STEP_TIMER_INTERVAL);
+               ATTACK_SCENARIO, NUM_RUNS, timer_interval);
 
 #if (ATTACK_SCENARIO == ZIGZAGGER)
     SGX_ASSERT(do_zigzagger(eid, NUM_RUNS));
