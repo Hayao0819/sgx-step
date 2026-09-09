@@ -1,8 +1,7 @@
 #!/bin/bash
 set -e
 
-git submodule init
-git submodule update --recursive --init
+git submodule update --recursive --init openenclave
 
 # ----------------------------------------------------------------------
 echo "[ patching SDK ]"

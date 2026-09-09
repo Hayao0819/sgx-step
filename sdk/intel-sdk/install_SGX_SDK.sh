@@ -15,7 +15,7 @@ function ci_silent() {
     fi
 }
 
-git submodule update --init --recursive
+git submodule update --init --recursive linux-sgx
 
 # ----------------------------------------------------------------------
 echo "[ patching SDK ]"

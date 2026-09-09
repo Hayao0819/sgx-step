@@ -3,7 +3,7 @@ set -e
 
 cd "$(dirname "$0")"
 
-git submodule update --init --recursive
+git submodule update --init --recursive edgelessrt ego
 
 # ----------------------------------------------------------------------
 echo "[ patching Edgeless RT's Open Enclave ]"
