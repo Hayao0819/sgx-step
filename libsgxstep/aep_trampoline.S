@@ -81,8 +81,8 @@ sgx_step_aep_trampoline:
 
     /* optionally set RFLAGS.TF to enable simulated single-stepping for DEBUG enclaves */
     lea sgx_step_do_trap(%rip), %rdx
-    mov (%rdx), %rdx
-    test %rdx, %rdx
+    movl (%rdx), %edx
+    test %edx, %edx
     je sgx_step_aep_eresume
     pushf
     orl $0x100, (%rsp)
