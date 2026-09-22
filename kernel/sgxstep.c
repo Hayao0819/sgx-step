@@ -36,6 +36,7 @@
 #include <linux/mm.h>
 #include <linux/highmem.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 
 #include <linux/clockchips.h>
 #include <linux/version.h>
