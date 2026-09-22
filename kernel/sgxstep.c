@@ -25,6 +25,7 @@
 #include <asm/page.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
+#include <linux/mmu_notifier.h>
 #include <asm/irq.h>
 #include <asm/apic.h>
 
@@ -65,6 +66,24 @@ static void *g_idt_copy = NULL;
 
 static uint32_t g_apic_lvtt_copy = 0x0, g_apic_tdcr_copy = 0x0;
 static int g_victim_cpu = -1;
+
+/*
+ * Also restore the victim APIC from an mmu_notifier .release: it runs in
+ * exit_mmap() before the synchronize_srcu() that otherwise hangs in D state,
+ * holding /dev/sgx-step, when a stepping process is killed mid-step (issue #90).
+ */
+static void restore_apic(void);
+static struct mmu_notifier g_mn;
+static struct mm_struct *g_mn_mm = NULL;
+static int g_mn_registered = 0;
+
+static void step_mn_release(struct mmu_notifier *mn, struct mm_struct *mm)
+{
+    restore_apic();
+}
+static const struct mmu_notifier_ops step_mn_ops = {
+    .release = step_mn_release,
+};
 
 /* ********************** UTIL FUNCTIONS ******************************* */
 
@@ -172,6 +191,14 @@ static int step_open(struct inode *inode, struct file *file)
     RET_ASSERT( !save_apic() );
 
     g_in_use = 1;
+
+    g_mn.ops = &step_mn_ops;
+    if (current->mm && !mmu_notifier_register(&g_mn, current->mm)) {
+        g_mn_mm = current->mm;
+        g_mn_registered = 1;
+    }
+    else
+        err("mmu_notifier_register failed; APIC not restored on unclean exit");
     return 0;
 }
 
@@ -255,7 +282,16 @@ static void restore_apic(void)
 static int step_release(struct inode *inode, struct file *file)
 {
     restore_idt();
-    restore_apic();
+
+    /* unregister drops register's mmgrab and, on a graceful close, invokes
+     * .release (restore_apic); on an unclean exit .release already ran. */
+    if (g_mn_registered) {
+        mmu_notifier_unregister(&g_mn, g_mn_mm);
+        g_mn_registered = 0;
+        g_mn_mm = NULL;
+    }
+    else
+        restore_apic();
 
     g_in_use = 0;
     return 0;
